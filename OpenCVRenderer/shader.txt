@@ -1,0 +1,474 @@
+class GouraudShader : public cvglShader
+{
+private:
+	Vec3f varying_intensity;
+public:
+	virtual Vec4f vertex(int iface, int nthvert)
+	{
+		Vec3f tmp = model->vert(iface, nthvert);
+		Vec4f cvgl_Vertex = Vec4f(1,1,1,1);
+		for (int i = 0; i < 3; i++) cvgl_Vertex[i] = tmp[i];
+		cvgl_Vertex = Viewport * Projection * ModelView * cvgl_Vertex;
+		varying_intensity[nthvert] = std::max(0.f, model->normal(iface, nthvert).dot(light_dir));
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color)
+	{
+		float intensity = varying_intensity.dot(bar);
+		color = intensity * Scalar(255, 255, 255);
+		return false;
+	}
+};
+
+class FlatShader : public cvglShader 
+{
+private:
+	Mat varying_tri;
+public:
+	FlatShader() { varying_tri = Mat::zeros(3, 3, CV_32FC1); }
+	virtual ~FlatShader() {}
+
+	virtual Vec4f vertex(int iface, int nthvert) 
+	{
+		Vec3f tmp = model->vert(iface, nthvert);
+		Mat vertex = Mat::ones(4, 1, CV_32FC1);
+		for (int i = 0; i < 3; i++) vertex.at<float>(i, 0) = tmp[i];
+		Mat cvgl_Vertex = Projection * ModelView * vertex;
+		for (int i = 0; i < 3; i++) varying_tri.at<float>(nthvert, i) = cvgl_Vertex.at<float>(i, 0);
+		cvgl_Vertex = Viewport * cvgl_Vertex;
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) 
+	{
+		Vec3f A, B, C;
+		for (int i = 0; i < 3; i++)
+		{
+			A[i] = varying_tri.at<float>(0, i);
+			B[i] = varying_tri.at<float>(1, i);
+			C[i] = varying_tri.at<float>(2, i);
+		}
+		Vec3f n = normalize((B - A).cross(C - A));
+		float intensity = min(max(n.dot(light_dir), 0.f), 1.f);
+		color = intensity * Scalar(255, 255, 255);
+		return false;
+	}
+};
+
+class ToonShader : public cvglShader
+{
+private:
+	Mat varying_tri;
+	Vec3f varying_ity;
+public:
+	ToonShader() { varying_tri = Mat::zeros(3, 3, CV_32FC1); }
+	virtual ~ToonShader() {}
+
+	virtual Vec4f vertex(int iface, int nthvert) {
+		Vec3f tmp = model->vert(iface, nthvert);
+		Mat vertex = Mat::ones(4, 1, CV_32FC1);
+		for (int i = 0; i < 3; i++) vertex.at<float>(i, 0) = tmp[i];
+		Mat cvgl_Vertex = Projection * ModelView * vertex;
+		for (int i = 0; i < 3; i++) varying_tri.at<float>(nthvert, i) = cvgl_Vertex.at<float>(i, 0);
+
+		varying_ity[nthvert] = min(max(model->normal(iface, nthvert).dot(light_dir), 0.f), 1.f);
+
+		cvgl_Vertex = Viewport * cvgl_Vertex;
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+		float intensity = varying_ity.dot(bar);
+		if (intensity > .85) intensity = 1;
+		else if (intensity > .60) intensity = .80;
+		else if (intensity > .45) intensity = .60;
+		else if (intensity > .30) intensity = .45;
+		else if (intensity > .15) intensity = .30;
+		color = Scalar(0, 155, 255)*intensity;
+		return false;
+	}
+};
+
+class Shader : public cvglShader {
+private:
+	Vec2f  varying_uv[3];
+	Vec3f  varying_intensity;
+
+public:
+	virtual ~Shader() {}
+	virtual Vec4f vertex(int iface, int nthvert) {
+		Vec2f uv = model->uv(iface, nthvert);
+		varying_uv[nthvert] = uv;
+		varying_intensity[nthvert] = std::max(0.f, model->normal(iface, nthvert).dot(light_dir));
+		Vec3f tmp = model->vert(iface, nthvert);
+		Vec4f vertex = Vec4f(1,1,1,1);
+		for (int i = 0; i < 3; i++) vertex[i] = tmp[i];
+		Vec4f cvgl_Vertex = Viewport * Projection * ModelView * vertex;
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+		float intensity = varying_intensity .dot(bar);
+		Vec2f uv = bar[0] * varying_uv[0] + bar[1] * varying_uv[1] + bar[2] * varying_uv[2];
+		color = model->diffuse(uv)*intensity;
+		return false;                               
+	}
+};
+
+class PhongShader : public cvglShader {
+private:
+	Vec2f  varying_uv[3];
+
+public:
+	Matx44f uniform_T;
+	Matx44f uniform_TINV;
+
+	PhongShader()
+	{
+		uniform_T = Projection * ModelView;
+		uniform_TINV = uniform_T.inv();
+		uniform_TINV = uniform_TINV.t();
+	}
+	virtual ~PhongShader() {}
+	virtual Vec4f vertex(int iface, int nthvert) {
+		Vec2f uv = model->uv(iface, nthvert);
+		varying_uv[nthvert] = uv;
+
+		Vec3f tmp = model->vert(iface, nthvert);
+		Vec4f vertex = Vec4f(1, 1, 1, 1);
+		for (int i = 0; i < 3; i++) vertex[i] = tmp[i];
+		Vec4f cvgl_Vertex = Viewport * Projection * ModelView * vertex;
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+
+		Vec2f uv = bar[0] * varying_uv[0] + bar[1] * varying_uv[1] + bar[2] * varying_uv[2];
+
+		Vec3f n = model->normal(uv);
+		Vec4f normal = Vec4f(1, 1, 1, 1);
+		for (int i = 0; i < 3; i++) normal[i] = n[i];
+		normal = uniform_TINV * normal;
+		for (int i = 0; i < 3; i++) n[i] = normal[i];
+
+		Vec4f light = Vec4f(1, 1, 1, 1);
+		for (int i = 0; i < 3; i++) light[i] = light_dir[i];
+		light = uniform_T * light;
+		Vec3f l;
+		for (int i = 0; i < 3; i++) l[i] = light[i];
+
+		Vec3f r = normalize(n * (n.dot(l) * 2.f) - l);
+		float spec = pow(max(r[2], 0.0f), model->specular(uv));
+
+		float diff = std::max(0.f, n.dot(l));
+
+		Scalar c = model->diffuse(uv);
+		for (int i = 0; i < 3; i++) color[i] = std::min<float>(0.1 + c[i] * (0.8* diff + .1*spec), 255);
+		return false;
+	}
+};
+
+class TangentPhongShader : public cvglShader {
+private:
+	Vec2f  varying_uv[3];
+	Vec4f  varying_tri[3]; 
+	Vec3f  varying_nrm[3];
+	Vec3f  ndc_tri[3];
+public:
+	Matx44f uniform_T;
+	Matx44f uniform_TINV;
+
+	TangentPhongShader()
+	{
+		uniform_T = Projection * ModelView;
+		uniform_TINV = uniform_T.inv();
+		uniform_TINV = uniform_TINV.t();
+
+		Vec4f light = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) light[i] = light_dir[i];
+		light = uniform_T * light;
+		for (int i = 0; i < 3; i++) light_dir[i] = light[i];
+	}
+	virtual ~TangentPhongShader() {}
+	virtual Vec4f vertex(int iface, int nthvert) {
+		varying_uv[nthvert] = model->uv(iface, nthvert);
+
+		Vec3f n = model->normal(iface, nthvert);
+		Vec4f norm = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) norm[i] = n[i];
+		norm = uniform_TINV * norm;
+		for (int i = 0; i < 3; i++) varying_nrm[nthvert][i] = norm[i];
+
+		Vec3f v = model->vert(iface, nthvert);
+		Vec4f cvgl_Vertex = Vec4f(1, 1, 1, 1);
+		for(int i = 0; i < 3; i++) cvgl_Vertex[i] = v[i];
+		cvgl_Vertex = Projection * ModelView * cvgl_Vertex;
+		varying_tri[nthvert] = cvgl_Vertex;
+
+		for (int i = 0; i < 3; i++)
+			ndc_tri[nthvert][i] = cvgl_Vertex[i] / cvgl_Vertex[3];
+		cvgl_Vertex = Viewport * cvgl_Vertex;
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+		Vec3f bn = normalize(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);
+		Vec2f uv = varying_uv[0] * bar[0] + varying_uv[1] * bar[1]+ varying_uv[2] * bar[2];
+
+		Matx<float, 3, 3> A;
+		Vec3f a0 = ndc_tri[1] - ndc_tri[0];
+		Vec3f a1 = ndc_tri[2] - ndc_tri[0];
+		for (int i = 0; i < 3; i++)
+		{
+			A(0, i) = a0[i];
+			A(1, i) = a1[i];
+			A(2, i) = bn[i];
+		}
+
+		Matx<float, 3, 3> AI = A.inv();
+
+		Matx<float, 3, 3> B;
+		Vec3f b0 = normalize(AI * Vec3f(varying_uv[1][0] - varying_uv[0][0], varying_uv[2][0] - varying_uv[0][0], 0));
+		Vec3f b1 = normalize(AI * Vec3f(varying_uv[1][1] - varying_uv[0][1], varying_uv[2][1] - varying_uv[0][1], 0));
+	
+
+		for (int i = 0; i < 3; i++)
+		{
+			B(i, 0) = b0[i];
+			B(i, 1) = b1[i];
+			B(i, 2) = bn[i];
+		}
+
+		Vec3f n = normalize(B * model->normal(uv));
+		float diff = std::max(0.f, n.dot(light_dir));
+		color = model->diffuse(uv)*diff;
+
+		return false;
+	}
+};
+
+class DepthShader : public cvglShader {
+private:
+	Vec3f  varying_tri[3];
+public:
+	virtual Vec4f vertex(int iface, int nthvert) {
+		Vec3f v = model->vert(iface, nthvert);
+		Vec4f cvgl_Vertex = Vec4f(1, 1, 1, 1);
+		for (int i = 0; i < 3; i++) cvgl_Vertex[i] = v[i];
+		cvgl_Vertex = Viewport * Projection * ModelView * cvgl_Vertex;
+		for (int i = 0; i < 3; i++) varying_tri[nthvert][i] = cvgl_Vertex[i];
+		return cvgl_Vertex;
+	}
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+		Vec3f p = varying_tri[0] * bar[0] + varying_tri[1] * bar[1] + varying_tri[2] * bar[2];
+		color = Scalar(255, 255, 255)*(p[2]/255.f);
+		return false;
+	}
+};
+
+class ShadowShader : public cvglShader {
+private:
+	Vec2f  varying_uv[3];
+	Vec4f  varying_tri[3]; 
+	Vec3f  varying_nrm[3];
+	Vec3f  ndc_tri[3];
+public:
+	Matx44f uniform_T;
+	Matx44f uniform_TINV;
+	Matx44f uniform_TSD;
+
+	ShadowShader(Matx44f TSD)
+	{
+		uniform_T = Projection * ModelView;
+		uniform_TINV = uniform_T.inv();
+		uniform_TINV = uniform_TINV.t();
+		uniform_TSD = TSD * ((Viewport * Projection * ModelView).inv());
+
+		Vec4f light = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) light[i] = light_dir[i];
+		light = uniform_T * light;
+		for (int i = 0; i < 3; i++) light_dir[i] = light[i];
+	}
+
+	ShadowShader()
+	{
+		uniform_T = Projection * ModelView;
+		uniform_TINV = uniform_T.inv();
+		uniform_TINV = uniform_TINV.t();
+
+		Vec4f light = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) light[i] = light_dir[i];
+		light = uniform_T * light;
+		for (int i = 0; i < 3; i++) light_dir[i] = light[i];
+	}
+	virtual ~ShadowShader() {}
+	virtual Vec4f vertex(int iface, int nthvert) {
+		varying_uv[nthvert] = model->uv(iface, nthvert);
+
+		Vec3f n = model->normal(iface, nthvert);
+		Vec4f norm = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) norm[i] = n[i];
+		norm = uniform_TINV * norm;
+		for (int i = 0; i < 3; i++) varying_nrm[nthvert][i] = norm[i];
+
+		Vec3f v = model->vert(iface, nthvert);
+		Vec4f cvgl_Vertex = Vec4f(1, 1, 1, 1);
+		for (int i = 0; i < 3; i++) cvgl_Vertex[i] = v[i];
+		cvgl_Vertex =  Projection * ModelView * cvgl_Vertex;
+
+		for (int i = 0; i < 3; i++)
+			ndc_tri[nthvert][i] = cvgl_Vertex[i] / cvgl_Vertex[3];
+		cvgl_Vertex = Viewport * cvgl_Vertex;
+		varying_tri[nthvert] = cvgl_Vertex;
+
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+		Vec4f sb_p = uniform_TSD * (varying_tri[0] * bar[0] + varying_tri[1] * bar[1] + varying_tri[2] * bar[2]);
+		sb_p = sb_p / sb_p[3];
+		float shadow = .3 + .7*(shadowbuffer.at<uchar>(int(sb_p[1]), int(sb_p[0])) < sb_p[2] + 4.34);
+
+		Vec3f bn = normalize(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);
+		Vec2f uv = varying_uv[0] * bar[0] + varying_uv[1] * bar[1]+ varying_uv[2] * bar[2];
+
+		Matx<float, 3, 3> A;
+		Vec3f a0 = ndc_tri[1] - ndc_tri[0];
+		Vec3f a1 = ndc_tri[2] - ndc_tri[0];
+		for (int i = 0; i < 3; i++)
+		{
+			A(0, i) = a0[i];
+			A(1, i) = a1[i];
+			A(2, i) = bn[i];
+		}
+
+		Matx<float, 3, 3> AI = A.inv();
+
+		Matx<float, 3, 3> B;
+		Vec3f b0 = normalize(AI * Vec3f(varying_uv[1][0] - varying_uv[0][0], varying_uv[2][0] - varying_uv[0][0], 0));
+		Vec3f b1 = normalize(AI * Vec3f(varying_uv[1][1] - varying_uv[0][1], varying_uv[2][1] - varying_uv[0][1], 0));
+	
+
+		for (int i = 0; i < 3; i++)
+		{
+			B(i, 0) = b0[i];
+			B(i, 1) = b1[i];
+			B(i, 2) = bn[i];
+		}
+
+		Vec3f n = normalize(B * model->normal(uv));
+		Vec3f r = normalize(n * (n.dot(light_dir) * 2.f) - light_dir);
+		float spec = pow(max(r[2], 0.0f), model->specular(uv));
+		float diff = std::max(0.f, n.dot(light_dir));
+
+		Scalar c = model->diffuse(uv);
+		for (int i = 0; i < 3; i++) color[i] = std::min<float>(0.0 + c[i] * shadow*(1.0*diff + .0*spec), 255);
+		//color = model->diffuse(uv)*diff;
+
+		return false;
+	}
+};
+
+class ShadowShader : public cvglShader {
+private:
+	Vec2f  varying_uv[3];
+	Vec4f  varying_tri[3]; 
+	Vec3f  varying_nrm[3];
+	Vec3f  ndc_tri[3];
+public:
+	Matx44f uniform_T;
+	Matx44f uniform_TINV;
+	Matx44f uniform_TSD;
+
+	ShadowShader(Matx44f TSD)
+	{
+		uniform_T = Projection * ModelView;
+		uniform_TINV = uniform_T.inv();
+		uniform_TINV = uniform_TINV.t();
+		uniform_TSD = TSD * ((Viewport * Projection * ModelView).inv());
+
+		Vec4f light = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) light[i] = light_dir[i];
+		light = uniform_T * light;
+		for (int i = 0; i < 3; i++) light_dir[i] = light[i];
+	}
+
+	ShadowShader()
+	{
+		uniform_T = Projection * ModelView;
+		uniform_TINV = uniform_T.inv();
+		uniform_TINV = uniform_TINV.t();
+
+		Vec4f light = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) light[i] = light_dir[i];
+		light = uniform_T * light;
+		for (int i = 0; i < 3; i++) light_dir[i] = light[i];
+	}
+	virtual ~ShadowShader() {}
+	virtual Vec4f vertex(int iface, int nthvert) {
+		varying_uv[nthvert] = model->uv(iface, nthvert);
+
+		Vec3f n = model->normal(iface, nthvert);
+		Vec4f norm = Vec4f(0, 0, 0, 0);
+		for (int i = 0; i < 3; i++) norm[i] = n[i];
+		norm = uniform_TINV * norm;
+		for (int i = 0; i < 3; i++) varying_nrm[nthvert][i] = norm[i];
+
+		Vec3f v = model->vert(iface, nthvert);
+		Vec4f cvgl_Vertex = Vec4f(1, 1, 1, 1);
+		for (int i = 0; i < 3; i++) cvgl_Vertex[i] = v[i];
+		cvgl_Vertex =  Projection * ModelView * cvgl_Vertex;
+
+		for (int i = 0; i < 3; i++)
+			ndc_tri[nthvert][i] = cvgl_Vertex[i] / cvgl_Vertex[3];
+		cvgl_Vertex = Viewport * cvgl_Vertex;
+		varying_tri[nthvert] = cvgl_Vertex;
+
+		return cvgl_Vertex;
+	}
+
+	virtual bool fragment(Vec3f bar, Scalar &color) {
+		Vec4f sb_p = uniform_TSD * (varying_tri[0] * bar[0] + varying_tri[1] * bar[1] + varying_tri[2] * bar[2]);
+		sb_p = sb_p / sb_p[3];
+		float shadow = .3 + .7*(shadowbuffer.at<uchar>(int(sb_p[1]), int(sb_p[0])) < sb_p[2] + 4.34);
+
+		Vec3f bn = normalize(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);
+		Vec2f uv = varying_uv[0] * bar[0] + varying_uv[1] * bar[1]+ varying_uv[2] * bar[2];
+
+		Matx<float, 3, 3> A;
+		Vec3f a0 = ndc_tri[1] - ndc_tri[0];
+		Vec3f a1 = ndc_tri[2] - ndc_tri[0];
+		for (int i = 0; i < 3; i++)
+		{
+			A(0, i) = a0[i];
+			A(1, i) = a1[i];
+			A(2, i) = bn[i];
+		}
+
+		Matx<float, 3, 3> AI = A.inv();
+
+		Matx<float, 3, 3> B;
+		Vec3f b0 = normalize(AI * Vec3f(varying_uv[1][0] - varying_uv[0][0], varying_uv[2][0] - varying_uv[0][0], 0));
+		Vec3f b1 = normalize(AI * Vec3f(varying_uv[1][1] - varying_uv[0][1], varying_uv[2][1] - varying_uv[0][1], 0));
+	
+
+		for (int i = 0; i < 3; i++)
+		{
+			B(i, 0) = b0[i];
+			B(i, 1) = b1[i];
+			B(i, 2) = bn[i];
+		}
+
+		Vec3f n = normalize(B * model->normal(uv));
+		Vec3f r = normalize(n * (n.dot(light_dir) * 2.f) - light_dir);
+		float spec = pow(max(r[2], 0.0f), model->specular(uv));
+		float diff = std::max(0.f, n.dot(light_dir));
+
+		Scalar c = model->diffuse(uv);
+		for (int i = 0; i < 3; i++) color[i] = std::min<float>(0.0 + c[i] * shadow*(1.0*diff + .0*spec), 255);
+		//color = model->diffuse(uv)*diff;
+
+		return false;
+	}
+};
