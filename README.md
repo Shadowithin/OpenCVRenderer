@@ -4,5 +4,5 @@
 - Show the result while runing
 
 # Result
-<img width="300px" src="OpenCVRenderer/frame.jpg" />
+![Result](OpenCVRenderer/frame.jpg)
 
