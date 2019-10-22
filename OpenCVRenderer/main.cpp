@@ -167,7 +167,7 @@ int main()
 				screen_coords[j] = shader->vertex(i, j);
 			triangle(screen_coords, shader, depth, shadowbuffer);
 		}
-		imwrite("shadowbuffer.bmp", shadowbuffer);
+		//imwrite("shadowbuffer.bmp", shadowbuffer);
 		delete shader;
 	}
 	
@@ -189,7 +189,7 @@ int main()
 	Mat framebuffer;
 	flip(frame, framebuffer, 0);
 	imshow("frame", framebuffer);
-	imwrite("frame.bmp", framebuffer);
+	imwrite("frame.jpg", framebuffer);
 	waitKey(0);
 	delete model;
 	delete shader;
