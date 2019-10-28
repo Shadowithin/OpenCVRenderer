@@ -116,11 +116,6 @@ public:
 		float diff = std::max(0.f, n.dot(light_dir));
 
 		Scalar c = model->diffuse(uv);
-		Scalar g;
-		if (model->isGlow()) {
-			g = model->glow(uv);
-			c += g;
-		}
 		for (int i = 0; i < 3; i++) color[i] = std::min<float>(0.1 + c[i] * shadow*(1.2*diff + .1*spec), 255);
 		//color = model->diffuse(uv)*diff;
 
@@ -196,9 +191,10 @@ int main()
 	flip(frame, framebuffer, 0);
 	imshow("frame", framebuffer);
 	imwrite("frame_diablo.jpg", framebuffer);
-	waitKey(0);
 	delete model;
 	delete shader;
-
+	model = nullptr;
+	shader = nullptr;
+	waitKey(0);
 	return 0;
 }

@@ -50,6 +50,8 @@ Model::Model(const char *filename) : verts_(), faces_() {
 	load_texture(filename, "_nm_tangent.bmp", normalmap_);
 	load_texture(filename, "_spec.bmp", specularmap_);
 	load_texture(filename, "_glow.bmp", glowmap_);
+
+	if (isGlow()) diffusemap_ += glowmap_;
 }
 
 Model::~Model() {
