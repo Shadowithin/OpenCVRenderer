@@ -11,11 +11,11 @@ using namespace cv;
 const int width = 800;
 const int height = 800;
 
-Model        *model = NULL;
-cvglShader  *shader = NULL;
+Model        *model = nullptr;
+cvglShader  *shader = nullptr;
 Mat           shadowbuffer;
 
-Vec3f  light_dir(1, 1, 1);
+Vec3f   light_dir(1, 1, 1);
 Vec3f         eye(1, 1, 3);
 Vec3f      center(0, 0, 0);
 Vec3f          up(0, 1, 0);
@@ -81,7 +81,7 @@ public:
 	virtual bool fragment(Vec3f bar, Scalar &color) {
 		Vec4f sb_p = uniform_TSD * (varying_tri[0] * bar[0] + varying_tri[1] * bar[1] + varying_tri[2] * bar[2]);
 		sb_p = sb_p / sb_p[3];
-		float shadow = .3 + .7*(shadowbuffer.at<uchar>(int(sb_p[1]), int(sb_p[0])) < sb_p[2] + 4.34);
+		float shadow = .3 + .7*(shadowbuffer.at<uchar>(int(sb_p[1]), int(sb_p[0])) < sb_p[2] + 1.34);
 
 		Vec3f bn = normalize(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);
 		Vec2f uv = varying_uv[0] * bar[0] + varying_uv[1] * bar[1]+ varying_uv[2] * bar[2];
@@ -116,7 +116,12 @@ public:
 		float diff = std::max(0.f, n.dot(light_dir));
 
 		Scalar c = model->diffuse(uv);
-		for (int i = 0; i < 3; i++) color[i] = std::min<float>(0.0 + c[i] * shadow*(1.0*diff + .0*spec), 255);
+		Scalar g;
+		if (model->isGlow()) {
+			g = model->glow(uv);
+			c += g;
+		}
+		for (int i = 0; i < 3; i++) color[i] = std::min<float>(0.1 + c[i] * shadow*(1.2*diff + .1*spec), 255);
 		//color = model->diffuse(uv)*diff;
 
 		return false;
@@ -148,7 +153,7 @@ int main()
 	Mat depth = Mat::zeros(height, width, CV_8UC4);
 	shadowbuffer = Mat::zeros(height, width, CV_8UC1);
 	Mat zbuffer = Mat::zeros(height, width, CV_8UC1);
-	model = new Model("./obj/african_head/african_head.obj");
+	model = new Model("./obj/diablo3_pose/diablo3_pose.obj");
 	
 
 	clock_t start = clock();
@@ -169,6 +174,7 @@ int main()
 		}
 		//imwrite("shadowbuffer.bmp", shadowbuffer);
 		delete shader;
+		shader = nullptr;
 	}
 	
 	Matx44f MSD = Viewport * Projection * ModelView;
@@ -189,7 +195,7 @@ int main()
 	Mat framebuffer;
 	flip(frame, framebuffer, 0);
 	imshow("frame", framebuffer);
-	imwrite("frame.jpg", framebuffer);
+	imwrite("frame_diablo.jpg", framebuffer);
 	waitKey(0);
 	delete model;
 	delete shader;

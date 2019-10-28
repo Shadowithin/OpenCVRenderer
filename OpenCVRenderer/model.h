@@ -15,6 +15,7 @@ private:
 	cv::Mat diffusemap_;
 	cv::Mat normalmap_;
 	cv::Mat specularmap_;
+	cv::Mat glowmap_;
 
 	void load_texture(std::string filename, const char *suffix, cv::Mat &img);
 
@@ -29,8 +30,14 @@ public:
 	cv::Vec3f normal(int iface, int nthvert);
 	cv::Vec2f uv(int iface, int nthvert);
 	cv::Scalar diffuse(cv::Vec2f uv);
+	cv::Scalar glow(cv::Vec2f uv);
 	float specular(cv::Vec2f uv);
+
 	std::vector<cv::Vec3i> face(int idx);
+	bool isGlow() { return !glowmap_.empty(); }
+	bool isDiffuse() { return !diffusemap_.empty(); }
+	bool isSpecluar () { return !specularmap_.empty(); }
+	bool isNormal() { return !normalmap_.empty(); }
 };
 
 #endif //__MODEL_H__

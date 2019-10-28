@@ -49,6 +49,7 @@ Model::Model(const char *filename) : verts_(), faces_() {
 	load_texture(filename, "_diffuse.bmp", diffusemap_);
 	load_texture(filename, "_nm_tangent.bmp", normalmap_);
 	load_texture(filename, "_spec.bmp", specularmap_);
+	load_texture(filename, "_glow.bmp", glowmap_);
 }
 
 Model::~Model() {
@@ -87,6 +88,12 @@ Vec2f Model::uv(int iface, int nthvert) {
 Scalar Model::diffuse(Vec2f uvf) {
 	Vec2i uv(uvf[0] * diffusemap_.cols, uvf[1] * diffusemap_.rows);
 	Scalar ans = diffusemap_.at<Vec3b>(uv[1], uv[0]);
+	return ans;
+}
+
+Scalar Model::glow(Vec2f uvf) {
+	Vec2i uv(uvf[0] * glowmap_.cols, uvf[1] * glowmap_.rows);
+	Scalar ans = glowmap_.at<Vec3b>(uv[1], uv[0]);
 	return ans;
 }
 
