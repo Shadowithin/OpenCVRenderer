@@ -125,18 +125,18 @@ public:
 
 class DepthShader : public cvglShader {
 private:
-	Vec3f  varying_tri[3];
+	Vec4f  varying_tri[3];
 public:
 	virtual Vec4f vertex(int iface, int nthvert) {
 		Vec3f v = model->vert(iface, nthvert);
 		Vec4f cvgl_Vertex = Vec4f(1, 1, 1, 1);
 		for (int i = 0; i < 3; i++) cvgl_Vertex[i] = v[i];
 		cvgl_Vertex = Viewport * Projection * ModelView * cvgl_Vertex;
-		for (int i = 0; i < 3; i++) varying_tri[nthvert][i] = cvgl_Vertex[i];
+	    varying_tri[nthvert] = cvgl_Vertex;
 		return cvgl_Vertex;
 	}
 	virtual bool fragment(Vec3f bar, Scalar &color) {
-		Vec3f p = varying_tri[0] * bar[0] + varying_tri[1] * bar[1] + varying_tri[2] * bar[2];
+		Vec4f p = varying_tri[0] * bar[0] + varying_tri[1] * bar[1] + varying_tri[2] * bar[2];
 		color = Scalar(255, 255, 255)*(p[2]/255.f);
 		return false;
 	}
