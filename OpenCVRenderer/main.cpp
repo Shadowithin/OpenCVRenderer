@@ -101,7 +101,7 @@ int main()
 	Mat framebuffer;
 	flip(frame, framebuffer, 0);
 	imshow("frame", framebuffer);
-	imwrite("frame.jpg", framebuffer);
+	imwrite("frame_diablo.jpg", framebuffer);
 	delete model;
 	delete shader;
 	model = nullptr;
