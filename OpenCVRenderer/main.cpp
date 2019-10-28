@@ -16,7 +16,7 @@ cvglShader  *shader = nullptr;
 Mat           shadowbuffer;
 
 Vec3f   light_dir(1, 1, 1);
-Vec3f         eye(1, 1, 3);
+Vec3f         eye(1.2, -.8, 3);
 Vec3f      center(0, 0, 0);
 Vec3f          up(0, 1, 0);
 
@@ -150,7 +150,6 @@ int main()
 	Mat zbuffer = Mat::zeros(height, width, CV_8UC1);
 	model = new Model("./obj/diablo3_pose/diablo3_pose.obj");
 	
-
 	clock_t start = clock();
 
 	{//depth
