@@ -1,3 +1,6 @@
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
 #include<iostream>
 #include<vector>
 #include "model.h"
@@ -38,11 +41,29 @@ public:
 	}
 };
 
+float max_elevation_angle(Mat &zbuffer, Vec2f p, Vec2f dir) {
+	float maxangle = 0;
+	for (float t = 0.; t < 1000.; t += 1.) {
+		Vec2f cur = p + dir * t;
+		if (cur[0] >= width || cur[1] >= height || cur[0] < 0 || cur[1] < 0) return maxangle;
+
+		float distance = norm(p - cur);
+		if (distance < 1.f) continue;
+		float elevation = zbuffer.at<float>(cur[1], cur[0]) - zbuffer.at<float>(p[1], p[0]);
+		maxangle = std::max(maxangle, atanf(elevation / distance));
+	}
+	return maxangle;
+}
+
 int main()
 {
 	Mat frame = Mat::zeros(height, width, CV_8UC4);
-	Mat zbuffer = Mat::zeros(height, width, CV_8UC1);
+	Mat zbuffer = Mat::zeros(height, width, CV_32FC1);
 	model = new Model("./obj/diablo3_pose/diablo3_pose.obj");
+
+	for (int i = 0; i < zbuffer.rows; i++)
+		for (int j = 0; j < zbuffer.cols; j++)
+			zbuffer.at<float>(i, j) = -numeric_limits<float>::max();
 	
 	clock_t start = clock();
 
@@ -60,13 +81,27 @@ int main()
 		triangle(screen_coords, shader, frame, zbuffer);
 	}
 
+#pragma omp parallel for
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			if (zbuffer.at<float>(y, x) < -1e5) continue;
+			float total = 0;
+			for (float a = 0; a < M_PI * 2 - 1e-4; a += M_PI / 4) {
+				total += M_PI / 2 - max_elevation_angle(zbuffer, Vec2f(x, y), Vec2f(cos(a), sin(a)));
+			}
+			total /= (M_PI / 2) * 8;
+			total = pow(total, 100.f);
+			frame.at<Vec4b>(y, x) = Scalar(total, total, total) * 255;
+		}
+	}
+
 	clock_t end = clock();
 	cout << end - start << endl;
 
 	Mat framebuffer;
-	flip(zbuffer, framebuffer, 0);
+	flip(frame, framebuffer, 0);
 	imshow("frame", framebuffer);
-	imwrite("frame_diablo.jpg", framebuffer);
+	imwrite("frame.jpg", framebuffer);
 	delete model;
 	delete shader;
 	model = nullptr;

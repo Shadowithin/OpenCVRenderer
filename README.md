@@ -1,10 +1,5 @@
 # OpencvRenderer
-- Code for reimplementation [**Tiny Renderer**](https://github.com/ssloy/tinyrenderer/wiki) using Opencv
-- Run faster
-- Show the result while runing
-
-# Assets
-- [**Full asset files**](https://pan.baidu.com/s/1XJFvntZVBc5NU3dgJ4SMfA)
+- Code for reimplementation [**SSAO**](https://github.com/ssloy/tinyrenderer/wiki/Lesson-8:-Ambient-occlusion) using Opencv
 
 # Result
 - Diablo

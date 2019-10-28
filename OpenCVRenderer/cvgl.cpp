@@ -76,12 +76,12 @@ void triangle(Vec4f *pts, cvglShader* shader, Mat &image, Mat &zbuffer)
 			if (c[0] < 0 || c[1] < 0 || c[2] < 0) continue;
 			float z = Vec3f(pts[0][2], pts[1][2], pts[2][2]).dot(c);
 			float w = Vec3f(pts[0][3], pts[1][3], pts[2][3]).dot(c);
-			int frag_depth = std::max(0, std::min(255, int(z / w + .5)));
+			float frag_depth =z / w / 255;
 
 			Scalar color;
-			if (zbuffer.at<uchar>(P[1], P[0]) < frag_depth && !shader->fragment(c, color))
+			if (zbuffer.at<float>(P[1], P[0]) < frag_depth && !shader->fragment(c, color))
 			{
-				zbuffer.at<uchar>(P[1], P[0]) = frag_depth;
+				zbuffer.at<float>(P[1], P[0]) = frag_depth;
 				image.at<Vec4b>(P[1], P[0]) = color;
 			}
 
