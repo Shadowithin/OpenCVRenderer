@@ -16,7 +16,6 @@ const int height = 800;
 
 Model        *model = nullptr;
 cvglShader  *shader = nullptr;
-Mat           shadowbuffer;
 
 Vec3f   light_dir(1, 1, 1);
 Vec3f         eye(1.2, -.8, 3);
